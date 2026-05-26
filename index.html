@@ -3,14 +3,15 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
-    <title>Kalender Pendidikan | Ponpes Al Muhajirin</title>
+    <title>Kalender Pendidikan | Yayasan Al Muhajirin</title>
     <!-- Tailwind + Font Awesome + FullCalendar -->
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     <link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/main.min.css" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/main.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/locales-all.min.js"></script>
-    <!-- Hijriyah library -->
+    <!-- Moment.js & Hijri -->
+    <script src="https://cdn.jsdelivr.net/npm/moment@2.29.4/moment.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/moment-hijri@2.1.2/moment-hijri.min.js"></script>
     <style>
         :root { --primary: #1e5631; --gold: #c9a03d; }
@@ -19,22 +20,52 @@
         .fc-day-today { background: #e6f7ec !important; }
         .dark { background-color: #1a2a1f; color: #e0e0e0; }
         .dark .fc { color: #333; }
+        /* Print styles dengan kop surat dinamis */
         @media print {
-            .no-print, .fc-header-toolbar, .fc-col-header, .fc-daygrid-day-frame, .fc-daygrid-day-events, .btn-print { display: none !important; }
-            .fc-daygrid-day-number { font-size: 14pt; }
-            body, .fc, .fc-daygrid-body { background: white; color: black; }
+            .no-print, .fc-header-toolbar, .fc-col-header, .fc-daygrid-day-frame, .fc-daygrid-day-events, .btn-print, #filterPanel, #runningText, #sholatWidget, footer, header, .dark-mode-toggle { display: none !important; }
+            .fc-daygrid-day-number { font-size: 12pt !important; }
+            body, .fc, .fc-daygrid-body { background: white; color: black; margin: 0; padding: 0; }
+            .fc-view { margin-top: 20px; }
+            .print-header {
+                text-align: center;
+                margin-bottom: 20px;
+                border-bottom: 2px solid #1e5631;
+                padding-bottom: 10px;
+            }
+            .print-header img { max-height: 60px; }
+            .print-header h2 { font-size: 18pt; margin: 5px 0; }
+            .print-header p { font-size: 10pt; margin: 0; }
+            .ttd {
+                margin-top: 40px;
+                text-align: right;
+                font-size: 10pt;
+            }
+            @page {
+                size: A4 landscape;
+                margin: 1.5cm;
+            }
+        }
+        .fc-daygrid-day-events { min-height: 2em; }
+        /* Running text animation */
+        @keyframes marquee {
+            0% { transform: translateX(100%); }
+            100% { transform: translateX(-100%); }
+        }
+        .animate-marquee {
+            display: inline-block;
+            animation: marquee 20s linear infinite;
         }
     </style>
 </head>
 <body class="transition-colors duration-300">
-    <!-- Header Lembaga -->
-    <header class="bg-[#1e5631] text-white shadow-lg">
+    <!-- Header Lembaga (tampilan web) -->
+    <header class="bg-[#1e5631] text-white shadow-lg no-print">
         <div class="container mx-auto px-4 py-3 flex flex-wrap justify-between items-center">
             <div class="flex items-center space-x-3">
-                <img src="https://placehold.co/50x50/1e5631/white?text=LOGO" alt="Logo" class="w-12 h-12 rounded-full border-2 border-[#c9a03d]">
+                <img id="logoImg" src="https://placehold.co/50x50/1e5631/white?text=LOGO" alt="Logo" class="w-12 h-12 rounded-full border-2 border-[#c9a03d]">
                 <div>
-                    <h1 class="font-bold text-xl">Pondok Pesantren Al Muhajirin</h1>
-                    <p class="text-xs text-[#c9a03d]">Kalender Pendidikan Terintegrasi</p>
+                    <h1 class="font-bold text-xl">Yayasan Pendidikan Al Muhajirin</h1>
+                    <p class="text-xs text-[#c9a03d]">TK | SDIT | SMPI | SMKI</p>
                 </div>
             </div>
             <div class="flex gap-2">
@@ -42,65 +73,267 @@
                 <a href="admin.html" class="bg-white text-[#1e5631] px-4 py-1 rounded-full text-sm font-semibold"><i class="fas fa-lock"></i> Admin</a>
             </div>
         </div>
-        <div id="runningText" class="bg-[#0f2e1a] py-2 text-center text-sm overflow-hidden whitespace-nowrap animate-marquee">Memuat pengumuman...</div>
+        <div id="runningText" class="bg-[#0f2e1a] py-2 text-center text-sm overflow-hidden whitespace-nowrap">Memuat pengumuman...</div>
     </header>
 
     <main class="container mx-auto px-4 py-6">
-        <!-- Widget Jadwal Sholat -->
-        <div class="bg-white dark:bg-gray-800 rounded-2xl shadow p-4 mb-6 flex flex-wrap justify-between items-center">
+        <!-- Widget Jadwal Sholat & Informasi Hijriyah -->
+        <div class="bg-white dark:bg-gray-800 rounded-2xl shadow p-4 mb-6 flex flex-wrap justify-between items-center no-print">
             <div class="flex items-center gap-2"><i class="fas fa-mosque text-[#1e5631] text-xl"></i><span class="font-semibold">Jadwal Sholat (Cianjur)</span></div>
             <div id="sholatWidget" class="grid grid-cols-6 gap-2 text-center text-sm">Memuat...</div>
+            <div id="hijriyahToday" class="text-sm bg-[#c9a03d] text-[#1e5631] px-3 py-1 rounded-full font-semibold"></div>
         </div>
 
-        <!-- Filter Tahun Ajaran -->
-        <div class="mb-4 flex justify-between items-center">
-            <select id="tahunAjaranSelect" class="border border-gray-300 rounded-lg px-4 py-2 bg-white dark:bg-gray-700"></select>
+        <!-- Filter Panel: Lembaga & Tahun Ajaran -->
+        <div id="filterPanel" class="bg-white dark:bg-gray-800 rounded-2xl shadow p-4 mb-6 flex flex-wrap gap-4 items-end no-print">
+            <div class="flex-1 min-w-[150px]">
+                <label class="block font-semibold mb-1">🏫 Pilih Lembaga</label>
+                <select id="lembagaFilter" class="w-full border rounded-lg px-3 py-2 bg-white dark:bg-gray-700">
+                    <option value="semua">🏫 Semua Lembaga (Gabungan)</option>
+                </select>
+            </div>
+            <div class="flex-1 min-w-[150px]">
+                <label class="block font-semibold mb-1">📆 Tahun Ajaran</label>
+                <select id="tahunAjaranSelect" class="w-full border rounded-lg px-3 py-2 bg-white dark:bg-gray-700"></select>
+            </div>
             <div>
-                <button onclick="printCalendar()" class="bg-[#1e5631] text-white px-4 py-2 rounded-lg"><i class="fas fa-print"></i> Cetak Bulanan</button>
+                <button onclick="printCalendar()" class="bg-[#1e5631] text-white px-5 py-2 rounded-lg"><i class="fas fa-print"></i> Cetak Kalender</button>
                 <button id="toggleYearView" class="bg-[#c9a03d] text-[#1e5631] px-4 py-2 rounded-lg ml-2"><i class="fas fa-calendar-alt"></i> Tampilan Tahunan</button>
             </div>
         </div>
 
-        <!-- Container Kalender -->
+        <!-- Container Kalender Bulanan -->
         <div id="calendarContainer" class="bg-white dark:bg-gray-800 rounded-2xl shadow p-4"></div>
         
-        <!-- Tampilan tahunan (hidden) -->
-        <div id="yearView" class="hidden bg-white dark:bg-gray-800 rounded-2xl shadow p-4 mt-4 overflow-x-auto">
-            <h3 class="text-xl font-bold mb-3 text-[#1e5631]">Kalender Tahunan 2025</h3>
+        <!-- Tampilan Tahunan (sederhana) -->
+        <div id="yearView" class="hidden bg-white dark:bg-gray-800 rounded-2xl shadow p-4 mt-4 overflow-x-auto no-print">
+            <h3 class="text-xl font-bold mb-3 text-[#1e5631]">Kalender Tahunan</h3>
             <div id="yearGrid" class="grid grid-cols-1 md:grid-cols-3 gap-4"></div>
         </div>
     </main>
 
-    <footer class="text-center text-gray-500 py-4 text-sm border-t mt-8">
-        &copy; 2025 Ponpes Al Muhajirin - Kalender Pendidikan | Data realtime dari Google Spreadsheet
+    <footer class="text-center text-gray-500 py-4 text-sm border-t mt-8 no-print">
+        &copy; 2025 Yayasan Al Muhajirin - Kalender Pendidikan Terintegrasi
     </footer>
 
     <script>
-        const GAS_URL = 'https://script.google.com/macros/s/YOUR_DEPLOY_ID/exec'; // GANTI dengan URL GAS Anda
+        // ==================== KONFIGURASI ====================
+        const GAS_URL = 'https://script.google.com/macros/s/YOUR_DEPLOY_ID/exec'; // GANTI DENGAN URL DEPLOY ANDA
         let currentCalendar = null;
+        let lembagaList = [];
+        let currentLembagaId = 'semua';
         let eventsData = [];
-        let categories = [];
 
-        // Dark mode
-        const darkModeToggle = document.getElementById('darkModeToggle');
-        darkModeToggle.addEventListener('click', () => document.documentElement.classList.toggle('dark'));
-
-        // Ambil data konfigurasi
-        async function fetchConfig() { return (await fetch(`${GAS_URL}?action=getConfig`).then(r=>r.json())).data; }
-        async function fetchCategories() { const res=await fetch(`${GAS_URL}?action=getCategories`); return (await res.json()).data; }
-        async function fetchTahunAjaran() { const res=await fetch(`${GAS_URL}?action=getTahunAjaran`); return (await res.json()).data; }
-        async function fetchEvents(tahunId) { const res=await fetch(`${GAS_URL}?action=getEvents&tahunAjaranId=${tahunId}`); return (await res.json()).data; }
-        async function fetchPengumuman() { const res=await fetch(`${GAS_URL}?action=getPengumuman`); return (await res.json()).data; }
-
-        // Running text
-        async function loadRunningText() {
-            const texts = await fetchPengumuman();
-            const runningDiv = document.getElementById('runningText');
-            if(texts.length) runningDiv.innerHTML = `<marquee>✨ ${texts.join(' ✨ • ✨ ')} ✨</marquee>`;
-            else runningDiv.innerHTML = '<marquee>Selamat datang di Kalender Pendidikan Al Muhajirin</marquee>';
+        // ==================== FUNGSI FETCH ====================
+        async function fetchJSON(endpoint) {
+            try {
+                const res = await fetch(`${GAS_URL}?${endpoint}`);
+                return await res.json();
+            } catch(e) {
+                console.error('Fetch error:', e);
+                return { status: 'error', message: 'Gagal mengambil data' };
+            }
         }
 
-        // Jadwal Sholat (API Aladhan)
+        // ==================== AMBIL DATA DARI GAS ====================
+        async function loadLembaga() {
+            const res = await fetchJSON('action=getLembaga');
+            if(res.status === 'success') {
+                lembagaList = res.data;
+                const select = document.getElementById('lembagaFilter');
+                select.innerHTML = '<option value="semua">🏫 Semua Lembaga (Gabungan)</option>' + 
+                    lembagaList.map(l => `<option value="${l.id}" style="border-left: 3px solid ${l.warna}">${l.nama}</option>`).join('');
+                select.addEventListener('change', (e) => {
+                    currentLembagaId = e.target.value;
+                    loadCalendar();
+                });
+            } else {
+                console.warn('Gagal load lembaga', res);
+            }
+        }
+
+        async function loadTahunAjaran() {
+            const res = await fetchJSON('action=getTahunAjaran');
+            if(res.status === 'success') {
+                const select = document.getElementById('tahunAjaranSelect');
+                select.innerHTML = res.data.map(t => `<option value="${t.id}" ${t.aktif ? 'selected' : ''}>${t.nama}</option>`).join('');
+                select.addEventListener('change', () => loadCalendar());
+            } else {
+                console.warn('Gagal load tahun ajaran', res);
+            }
+        }
+
+        async function loadCalendar() {
+            const tahunId = document.getElementById('tahunAjaranSelect').value;
+            if(!tahunId) return;
+            const res = await fetchJSON(`action=getEvents&tahunAjaranId=${tahunId}&lembagaId=${currentLembagaId}`);
+            if(res.status === 'success') {
+                eventsData = res.data;
+                renderCalendar(eventsData);
+            } else {
+                console.warn('Gagal load events', res);
+                renderCalendar([]);
+            }
+        }
+
+        function renderCalendar(events) {
+            const calEl = document.getElementById('calendarContainer');
+            if(currentCalendar) currentCalendar.destroy();
+            currentCalendar = new FullCalendar.Calendar(calEl, {
+                initialView: 'dayGridMonth',
+                locale: 'id',
+                headerToolbar: { left: 'prev,next today', center: 'title', right: 'dayGridMonth,dayGridWeek' },
+                events: events.map(ev => ({
+                    title: ev.title,
+                    start: ev.start,
+                    end: ev.end,
+                    color: ev.color,
+                    extendedProps: { 
+                        description: ev.description, 
+                        surat: ev.nomor_surat, 
+                        lembaga: ev.lembaga_nama || 'Umum',
+                        category: ev.category
+                    }
+                })),
+                eventClick: function(info) {
+                    let lembagaText = info.event.extendedProps.lembaga ? `🏫 ${info.event.extendedProps.lembaga}\n` : '';
+                    let suratText = info.event.extendedProps.surat ? `📄 Surat: ${info.event.extendedProps.surat}\n` : '';
+                    alert(`📌 ${info.event.title}\n📅 ${info.event.start.toLocaleDateString()} - ${info.event.end?.toLocaleDateString() || info.event.start.toLocaleDateString()}\n${lembagaText}${suratText}📝 ${info.event.extendedProps.description || 'Tidak ada deskripsi'}`);
+                }
+            });
+            currentCalendar.render();
+        }
+
+        // ==================== CETAK DENGAN KOP PER LEMBAGA ====================
+        async function printCalendar() {
+            // Ambil informasi lembaga yang dipilih
+            const selectLembaga = document.getElementById('lembagaFilter');
+            const lembagaId = selectLembaga.value;
+            let lembagaNama = 'Semua Lembaga';
+            let logoUrl = 'https://placehold.co/100x100/1e5631/white?text=LOGO';
+            let kepalaSekolah = 'Kepala Yayasan';
+            
+            if(lembagaId !== 'semua') {
+                const lembaga = lembagaList.find(l => l.id == lembagaId);
+                if(lembaga) {
+                    lembagaNama = lembaga.nama;
+                    logoUrl = lembaga.logo_url || logoUrl;
+                    kepalaSekolah = lembaga.kepala_sekolah || `Kepala ${lembaga.nama}`;
+                }
+            } else {
+                kepalaSekolah = 'Kepala Yayasan Al Muhajirin';
+            }
+
+            // Ambil data events untuk dicetak (sesuai filter saat ini)
+            const tahunId = document.getElementById('tahunAjaranSelect').value;
+            const tahunNama = document.getElementById('tahunAjaranSelect').selectedOptions[0]?.text || '2025/2026';
+            const eventsRes = await fetchJSON(`action=getEvents&tahunAjaranId=${tahunId}&lembagaId=${lembagaId}`);
+            const printEvents = eventsRes.status === 'success' ? eventsRes.data : [];
+
+            // Buat elemen sementara untuk print
+            const printWindow = window.open('', '_blank');
+            printWindow.document.write(`
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <title>Kalender ${lembagaNama} - ${tahunNama}</title>
+                    <link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/main.min.css" rel="stylesheet">
+                    <style>
+                        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 20px; }
+                        .print-header { text-align: center; margin-bottom: 30px; border-bottom: 3px solid #1e5631; padding-bottom: 15px; }
+                        .print-header img { max-height: 80px; }
+                        .print-header h1 { margin: 5px 0; color: #1e5631; }
+                        .print-header h2 { margin: 5px 0; }
+                        .print-header p { margin: 2px 0; font-size: 12px; }
+                        .fc { max-width: 100%; }
+                        .fc-daygrid-day-number { font-size: 11px; }
+                        .fc-event { font-size: 9px; }
+                        .ttd { margin-top: 40px; text-align: right; font-size: 12px; }
+                        @media print {
+                            body { margin: 0; padding: 0; }
+                            @page { size: A4 landscape; margin: 1.5cm; }
+                        }
+                    </style>
+                </head>
+                <body>
+                    <div class="print-header">
+                        <img src="${logoUrl}" alt="Logo" onerror="this.src='https://placehold.co/100x100/1e5631/white?text=LOGO'">
+                        <h1>Yayasan Pendidikan Al Muhajirin</h1>
+                        <h2>${lembagaNama}</h2>
+                        <p>Alamat: Jl. Pesantren No. 1, Cianjur - Jawa Barat</p>
+                        <p>Kalender Pendidikan Tahun Ajaran ${tahunNama}</p>
+                    </div>
+                    <div id="printCalendar"></div>
+                    <div class="ttd">
+                        <p>Cianjur, ${new Date().toLocaleDateString('id-ID')}</p>
+                        <p>Kepala ${lembagaNama === 'Semua Lembaga' ? 'Yayasan' : lembagaNama},</p>
+                        <br><br><br>
+                        <p><u>${kepalaSekolah}</u></p>
+                    </div>
+                    <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/main.min.js"><\/script>
+                    <script>
+                        document.addEventListener('DOMContentLoaded', function() {
+                            const calendarEl = document.getElementById('printCalendar');
+                            const calendar = new FullCalendar.Calendar(calendarEl, {
+                                initialView: 'dayGridMonth',
+                                locale: 'id',
+                                headerToolbar: { left: '', center: 'title', right: '' },
+                                events: ${JSON.stringify(printEvents.map(ev => ({
+                                    title: ev.title,
+                                    start: ev.start,
+                                    end: ev.end,
+                                    color: ev.color
+                                })))}
+                            });
+                            calendar.render();
+                        });
+                        window.onload = () => { setTimeout(() => { window.print(); window.close(); }, 500); };
+                    <\/script>
+                </body>
+                </html>
+            `);
+            printWindow.document.close();
+        }
+
+        // ==================== TAMPILAN TAHUNAN ====================
+        async function showYearView() {
+            const tahunId = document.getElementById('tahunAjaranSelect').value;
+            const res = await fetchJSON(`action=getEvents&tahunAjaranId=${tahunId}&lembagaId=${currentLembagaId}`);
+            const events = res.status === 'success' ? res.data : [];
+            const year = new Date().getFullYear();
+            const months = ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Ags','Sep','Okt','Nov','Des'];
+            const grid = document.getElementById('yearGrid');
+            grid.innerHTML = '';
+            for(let m=0; m<12; m++) {
+                const monthEvents = events.filter(e => new Date(e.start).getMonth() === m);
+                const card = document.createElement('div');
+                card.className = 'border rounded-xl p-2 bg-gray-50 dark:bg-gray-700';
+                card.innerHTML = `<h4 class="font-bold text-[#1e5631]">${months[m]}</h4><ul class="text-xs">${monthEvents.slice(0,5).map(ev=>`<li class="truncate">• ${ev.title}</li>`).join('')}${monthEvents.length>5?'<li class="text-gray-500">+ lainnya</li>':''}</ul>`;
+                grid.appendChild(card);
+            }
+            document.getElementById('calendarContainer').classList.add('hidden');
+            document.getElementById('yearView').classList.remove('hidden');
+        }
+
+        function hideYearView() {
+            document.getElementById('calendarContainer').classList.remove('hidden');
+            document.getElementById('yearView').classList.add('hidden');
+        }
+
+        // ==================== HIJRIYAH & JADWAL SHOLAT ====================
+        async function loadHijriyah() {
+            try {
+                const res = await fetch(`https://api.aladhan.com/v1/gToH?date=${moment().format('DD-MM-YYYY')}`);
+                const data = await res.json();
+                if(data.code === 200) {
+                    const hijri = data.data.hijri;
+                    document.getElementById('hijriyahToday').innerHTML = `🕌 ${hijri.day} ${hijri.month.en} ${hijri.year} H`;
+                } else {
+                    document.getElementById('hijriyahToday').innerHTML = '🕌 -';
+                }
+            } catch(e) { console.log(e); document.getElementById('hijriyahToday').innerHTML = '🕌 -'; }
+        }
+
         async function loadPrayerTimes() {
             try {
                 const res = await fetch('https://api.aladhan.com/v1/timingsByCity?city=Cianjur&country=Indonesia&method=2');
@@ -115,80 +348,44 @@
                     <div><strong>Maghrib</strong><br>${timings.Maghrib}</div>
                     <div><strong>Isya</strong><br>${timings.Isha}</div>
                 `;
-            } catch(e) { console.log(e); }
+            } catch(e) { console.log(e); widget.innerHTML = '<div>Gagal memuat jadwal</div>'; }
         }
 
-        // Inisialisasi FullCalendar
-        async function initCalendar(tahunId) {
-            eventsData = await fetchEvents(tahunId);
-            const calEl = document.getElementById('calendarContainer');
-            if(currentCalendar) currentCalendar.destroy();
-            currentCalendar = new FullCalendar.Calendar(calEl, {
-                initialView: 'dayGridMonth',
-                locale: 'id',
-                headerToolbar: { left: 'prev,next today', center: 'title', right: 'dayGridMonth,dayGridWeek' },
-                events: eventsData.map(ev => ({
-                    title: ev.title,
-                    start: ev.start,
-                    end: ev.end,
-                    color: ev.color,
-                    extendedProps: { description: ev.description, surat: ev.nomor_surat, category: ev.category }
-                })),
-                eventClick: function(info) {
-                    alert(`📌 ${info.event.title}\n📅 ${info.event.start.toLocaleDateString()} - ${info.event.end?.toLocaleDateString() || info.event.start.toLocaleDateString()}\n📝 ${info.event.extendedProps.description || 'Tidak ada deskripsi'}\n📄 Surat: ${info.event.extendedProps.surat || '-'}`);
-                }
-            });
-            currentCalendar.render();
-        }
-
-        // Tampilan tahunan sederhana
-        async function showYearView() {
-            const tahunId = document.getElementById('tahunAjaranSelect').value;
-            const events = await fetchEvents(tahunId);
-            const year = new Date().getFullYear();
-            const months = ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Ags','Sep','Okt','Nov','Des'];
-            const grid = document.getElementById('yearGrid');
-            grid.innerHTML = '';
-            for(let m=0; m<12; m++) {
-                const monthEvents = events.filter(e => new Date(e.start).getMonth() === m);
-                const card = document.createElement('div');
-                card.className = 'border rounded-xl p-2 bg-gray-50 dark:bg-gray-700';
-                card.innerHTML = `<h4 class="font-bold text-[#1e5631]">${months[m]}</h4><ul class="text-xs">${monthEvents.slice(0,5).map(ev=>`<li class="truncate">• ${ev.title}</li>`).join('')}${monthEvents.length>5?'<li>+ lainnya</li>':''}</ul>`;
-                grid.appendChild(card);
+        async function loadRunningText() {
+            const res = await fetchJSON('action=getPengumuman');
+            const runningDiv = document.getElementById('runningText');
+            if(res.status === 'success' && res.data.length) {
+                runningDiv.innerHTML = `<div class="animate-marquee whitespace-nowrap">✨ ${res.data.join(' ✨ • ✨ ')} ✨</div>`;
+            } else {
+                runningDiv.innerHTML = '<div class="animate-marquee whitespace-nowrap">✨ Selamat datang di Kalender Pendidikan Yayasan Al Muhajirin ✨</div>';
             }
-            document.getElementById('calendarContainer').classList.add('hidden');
-            document.getElementById('yearView').classList.remove('hidden');
         }
 
-        function hideYearView() { 
-            document.getElementById('calendarContainer').classList.remove('hidden');
-            document.getElementById('yearView').classList.add('hidden');
+        // ==================== DARK MODE ====================
+        const darkModeToggle = document.getElementById('darkModeToggle');
+        darkModeToggle.addEventListener('click', () => {
+            document.documentElement.classList.toggle('dark');
+            localStorage.setItem('darkMode', document.documentElement.classList.contains('dark'));
+        });
+        if(localStorage.getItem('darkMode') === 'true') {
+            document.documentElement.classList.add('dark');
         }
 
+        // ==================== INISIALISASI ====================
         document.getElementById('toggleYearView').addEventListener('click', () => {
-            const isYearVisible = !document.getElementById('yearView').classList.contains('hidden');
-            if(isYearVisible) hideYearView();
-            else showYearView();
+            const isHidden = document.getElementById('yearView').classList.contains('hidden');
+            if(isHidden) showYearView();
+            else hideYearView();
         });
 
-        async function loadTahunAjaran() {
-            const tahunData = await fetchTahunAjaran();
-            const select = document.getElementById('tahunAjaranSelect');
-            select.innerHTML = tahunData.map(t => `<option value="${t.id}" ${t.aktif ? 'selected' : ''}>${t.nama}</option>`).join('');
-            select.addEventListener('change', () => initCalendar(select.value));
-        }
-
-        function printCalendar() { window.print(); }
-
-        (async function() {
+        (async function init() {
+            await loadLembaga();
             await loadTahunAjaran();
-            const awalId = document.getElementById('tahunAjaranSelect').value;
-            await initCalendar(awalId);
+            await loadCalendar();
             loadRunningText();
             loadPrayerTimes();
-            fetchCategories().then(cat => { categories = cat; });
+            loadHijriyah();
         })();
     </script>
-    <style>.animate-marquee { animation: marquee 15s linear infinite; } @keyframes marquee { 0% { transform: translateX(100%); } 100% { transform: translateX(-100%); }}</style>
 </body>
 </html>
